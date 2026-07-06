@@ -2531,7 +2531,6 @@ var qrcode = function() {
   <span class="pill">💡 <b id="hintCount">0</b></span>
   <span class="pill" id="stepPill">Étape 1/7</span>
   <span class="grow"></span>
-  <div class="carnet" id="carnet"></div>
   <button class="mute" id="muteBtn" title="Son" onclick="toggleMute()">🔊</button>
 </div>
 
@@ -2550,7 +2549,8 @@ var qrcode = function() {
       An 68. L'officier romain <b>Torpès</b> est martyrisé sous Néron ; son corps est placé dans une barque avec un coq et un chien,
       qui dérive jusqu'au rivage où naîtra la ville qui portera son nom : <i class="serif-it">Saint-Tropez</i>.
       Le saint y aurait laissé un <b>mot de passe</b>, dispersé en sept lettres à travers la ville.
-      <br><br><b>30 minutes</b>, sept lieux, des énigmes, un coffre, un QR code et un défi. Reconstituez le mot et percez le secret.
+      <br><br><b>30 minutes</b>, sept lieux, des énigmes, un cryptex, un QR code et des défis. Reconstituez le mot et percez le secret.
+      <br><br>⚠️ <b>Gardez votre tableau à portée de main :</b> chaque lieu résolu vous donne une lettre, à noter aussitôt — elle ne sera plus affichée ensuite !
     </p>
     <div class="field">
       <label for="pseudo">Nom de votre équipage</label>
@@ -2738,7 +2738,7 @@ const DURATION = 30*60;          // 30 minutes strictes
 const CHEST_CODE = "6817";       // code du coffre physique (les joueurs le DÉDUISENT)
 const QR_ANSWER  = "CRUCHOT";    // réponse à saisir (résultat de l'énigme du QR)
 // Texte encodé DANS le QR : une charade à résoudre (sans accents, pour un QR fiable au scan)
-const QR_ENIGME  = "ENIGME. Mon premier est un grand vin tres repute. Mon deuxieme est le contraire de froid. Prononces a la suite, ils forment un nom. Tapez ce nom sur l'ordinateur.";
+const QR_ENIGME  = "ÉNIGME. Mon premier est un grand vin très réputé. Mon deuxième est le contraire de froid. Prononcés à la suite, ils forment un nom. Tapez ce nom sur l'ordinateur.";
 const GM_PASSWORD = "SUFFREN";   // mot de passe maître du jeu (modifiable)
 
 /* Modules physiques (modifiables) */
@@ -3052,11 +3052,6 @@ function refreshHud(){
     const pos = STEPS.slice(0,state.idx+1).filter(s=>!s.bonus).length;
     $("#stepPill").textContent = "Lieu "+pos+"/"+lettered.length;
   }
-  $$("#carnet .seal").forEach((el,k)=>{
-    const li = lettered[k];
-    if(li && state.letters[li.i]){ el.classList.add("got"); el.textContent=state.letters[li.i]; }
-    else{ el.classList.remove("got"); el.textContent=""; }
-  });
 }
 
 /* ---------- CHRONO ---------- */
@@ -3280,19 +3275,39 @@ function mazeRandPath(g,W,H,taken){
   }
   return {x:W-2,y:1};
 }
-function renderMazeBody(){
-  const exp = state.mode==="expert";
+const MAZE_BUDGET = { famille:2.0, expert:1.6 };  // coups autorisés = chemin optimal × ce facteur
+function mazeBfsDist(g,W,H,from,to){
+  const seen=Array.from({length:H},()=>Array(W).fill(false)); seen[from.y][from.x]=true;
+  let q=[[from.x,from.y,0]], head=0;
+  while(head<q.length){ const [x,y,dd]=q[head++]; if(x===to.x&&y===to.y) return dd;
+    for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){ const nx=x+dx,ny=y+dy;
+      if(nx>=0&&ny>=0&&nx<W&&ny<H&&g[ny][nx]===0&&!seen[ny][nx]){ seen[ny][nx]=true; q.push([nx,ny,dd+1]); } } }
+  return Infinity;
+}
+function mazeOptimal(g,W,H,s,coq,chien,goal){
+  const d=(a,b)=>mazeBfsDist(g,W,H,a,b);
+  return Math.min(d(s,coq)+d(coq,chien)+d(chien,goal), d(s,chien)+d(chien,coq)+d(coq,goal));
+}
+function newMaze(){
+  const exp=state.mode==="expert";
   const W=exp?25:17, H=exp?17:13, R=exp?1:2;
   const g=genMaze(W,H), taken=new Set();
   const coq=mazeRandPath(g,W,H,taken), chien=mazeRandPath(g,W,H,taken);
-  state.maze={ g,W,H,x:1,y:1,gx:W-2,gy:H-2,won:false,moves:0,R,
+  const opt=mazeOptimal(g,W,H,{x:1,y:1},coq,chien,{x:W-2,y:H-2});
+  const limit=Math.max(opt+8, Math.round(opt*MAZE_BUDGET[exp?"expert":"famille"]));
+  const resets = state.maze ? (state.maze.resets||0) : 0;
+  state.maze={ g,W,H,x:1,y:1,gx:W-2,gy:H-2,won:false,dead:false,moves:0,R,opt,limit,resets,
     coq, chien, hasCoq:false, hasChien:false, seen:new Set([(W-2)+","+(H-2)]) };
   window.__maze=state.maze;
-  let cells="";
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++)
-    cells+=`<div class="mcell fog" data-x="${x}" data-y="${y}"></div>`;
-  return `<p class="enonce">🌫️ Le golfe est noyé dans la <b>brume</b> : vous ne voyez que ce que vous avez exploré. Récupérez le <b>coq</b> 🐓 et le <b>chien</b> 🐕, puis menez la <b>barque</b> ⛵ au <b>rivage</b> 🏖️. Flèches du clavier ou boutons.</p>
-    <div class="maze-wrap"><div class="maze" id="maze" style="grid-template-columns:repeat(${W},1fr)">${cells}</div></div>
+  const grid=$("#maze"); if(!grid) return;
+  grid.style.gridTemplateColumns=`repeat(${W},1fr)`;
+  let cells=""; for(let y=0;y<H;y++)for(let x=0;x<W;x++) cells+=`<div class="mcell fog" data-x="${x}" data-y="${y}"></div>`;
+  grid.innerHTML=cells;
+  paintMaze(); mazeStatus();
+}
+function renderMazeBody(){
+  return `<p class="enonce">🌫️ Le golfe est noyé dans la <b>brume</b> : vous ne voyez que ce que vous avez exploré. Récupérez le <b>coq</b> 🐓 et le <b>chien</b> 🐕, puis menez la <b>barque</b> ⛵ au <b>rivage</b> 🏖️. Flèches du clavier ou boutons. <b>Attention :</b> le nombre de coups est limité — au-delà, la barque dérive et un nouveau parcours apparaît !</p>
+    <div class="maze-wrap"><div class="maze" id="maze"></div></div>
     <div class="dpad">
       <button class="btn btn-ghost dbtn" data-dir="up">▲</button>
       <div class="dpad-mid">
@@ -3301,7 +3316,7 @@ function renderMazeBody(){
         <button class="btn btn-ghost dbtn" data-dir="right">▶</button>
       </div>
     </div>
-    <p class="step-note" id="mazeStatus" style="text-align:center;margin-top:4px">À bord : 🐓 ✗ &nbsp; 🐕 ✗ &nbsp;·&nbsp; Coups : 0</p>`;
+    <p class="step-note" id="mazeStatus" style="text-align:center;margin-top:4px">À bord : 🐓 ✗ &nbsp; 🐕 ✗</p>`;
 }
 function mazeReveal(){
   const m=state.maze;
@@ -3326,11 +3341,18 @@ function paintMaze(){
   });
 }
 function mazeStatus(){
-  const m=state.maze;
-  $("#mazeStatus").innerHTML = `À bord : 🐓 ${m.hasCoq?"✓":"✗"} &nbsp; 🐕 ${m.hasChien?"✓":"✗"} &nbsp;·&nbsp; Coups : ${m.moves}`;
+  const m=state.maze; const left=m.limit-m.moves;
+  const warn = left<=5 ? 'color:var(--rouge);font-weight:700' : (left<=12?'color:var(--ocre-clair);font-weight:700':'');
+  $("#mazeStatus").innerHTML = `À bord : 🐓 ${m.hasCoq?"✓":"✗"} &nbsp; 🐕 ${m.hasChien?"✓":"✗"} &nbsp;·&nbsp; <span style="${warn}">Coups : ${m.moves} / ${m.limit}</span>`;
+}
+function mazeReset(){
+  const m=state.maze; m.dead=true; m.resets=(m.resets||0)+1;
+  Audio2.bad();
+  $("#mazeStatus").innerHTML = `🌀 Trop de manœuvres ! La barque a dérivé dans la brume… <b>nouveau parcours</b> (essai ${m.resets+1}).`;
+  setTimeout(()=>{ if(document.getElementById("maze")) newMaze(); }, 1200);
 }
 function mazeMove(dir){
-  const m=state.maze; if(!m||m.won)return;
+  const m=state.maze; if(!m||m.won||m.dead)return;
   const d={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[dir]; if(!d)return;
   const nx=m.x+d[0], ny=m.y+d[1];
   if(nx<0||ny<0||nx>=m.W||ny>=m.H||m.g[ny][nx]===1){ Audio2.bad(); return; }
@@ -3338,15 +3360,18 @@ function mazeMove(dir){
   if(!m.hasCoq && nx===m.coq.x && ny===m.coq.y){ m.hasCoq=true; Audio2.good(); }
   if(!m.hasChien && nx===m.chien.x && ny===m.chien.y){ m.hasChien=true; Audio2.good(); }
   Audio2.tick(); paintMaze(); mazeStatus();
-  if(m.x===m.gx && m.y===m.gy){
-    if(m.hasCoq && m.hasChien){ m.won=true; Audio2.good();
-      const pts = state.mode==="expert" ? Math.max(150, 900 - m.moves*3) : Math.max(120, 600 - m.moves*3);
-      finishBonus(pts); }
-    else { $("#mazeStatus").innerHTML = `⚠️ Récupérez d'abord le 🐓 et le 🐕 avant le rivage ! &nbsp;·&nbsp; Coups : ${m.moves}`; Audio2.bad(); }
+  if(m.x===m.gx && m.y===m.gy && m.hasCoq && m.hasChien){
+    m.won=true; Audio2.good();
+    const pts = state.mode==="expert" ? Math.max(150, 900 - m.moves*3) : Math.max(120, 600 - m.moves*3);
+    finishBonus(pts); return;
   }
+  if(m.x===m.gx && m.y===m.gy){
+    $("#mazeStatus").innerHTML = `⚠️ Récupérez d'abord le 🐓 et le 🐕 avant le rivage ! &nbsp;·&nbsp; Coups : ${m.moves} / ${m.limit}`; Audio2.bad();
+  }
+  if(m.moves>=m.limit && !m.won){ mazeReset(); }
 }
 function wireMaze(){
-  paintMaze();
+  newMaze();
   $$("#stepCard .dbtn").forEach(b=>b.addEventListener("click",()=>mazeMove(b.dataset.dir)));
   state.mazeKey = ev=>{
     if(!document.getElementById("maze")) return;
@@ -3445,7 +3470,7 @@ function awardLetter(){
   const last = state.idx===STEPS.length-1;
   $("#afterZone").innerHTML = `
     <div class="letter-won"><div class="eyebrow">Lettre obtenue</div><div class="big">${step.letter}</div>
-      <p class="serif-it">Notez-la dans votre carnet de bord.</p></div>
+      <p class="serif-it">✍️ Notez vite cette lettre sur votre tableau — elle ne réapparaîtra pas !</p></div>
     <div class="nav-row"><span></span><button class="btn btn-or" id="nextBtn">${last?"Reconstituer le mot →":"Lieu suivant →"}</button></div>`;
   $("#nextBtn").addEventListener("click",()=>{
     if(last){ prepFinale(); go("finale"); }
@@ -3568,8 +3593,11 @@ function unlockGm(){
   if(norm($("#gmPass").value)===norm(GM_PASSWORD)){
     $("#gmWord").textContent = SECRET;
     $("#gmQRtext").innerHTML = "Charade encodée : « "+QR_ENIGME+" » <b>Réponse : "+QR_ANSWER+"</b>";
-    // QR imprimable (contient la charade)
-    try{ const qr=qrcode(0,"M"); qr.addData(QR_ENIGME); qr.make(); $("#gmQR").innerHTML = qr.createSvgTag({cellSize:4,margin:2}); }
+    // QR imprimable (contient la charade) — encodage UTF-8 pour les accents
+    try{
+      if(qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+      const qr=qrcode(0,"M"); qr.addData(QR_ENIGME); qr.make(); $("#gmQR").innerHTML = qr.createSvgTag({cellSize:4,margin:2});
+    }
     catch(e){ $("#gmQR").innerHTML="<p style='color:#c33'>QR indisponible</p>"; }
     // modules physiques
     if($("#gmPadWord")) $("#gmPadWord").textContent = PADLOCK_WORD;
@@ -3607,7 +3635,6 @@ function launchConfetti(){
 }
 
 /* ---------- INITIALISATION ---------- */
-$("#carnet").innerHTML = STEPS.filter(s=>!s.bonus).map((_,i)=>`<div class="seal" data-i="${i}"></div>`).join("");
 $("#heroIllus").innerHTML = artHtml("hero");
 $("#stepPill").textContent = "Lieu 1/"+STEPS.filter(s=>!s.bonus).length;
 $("#gmEnter").addEventListener("click",unlockGm);
