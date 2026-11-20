@@ -2738,7 +2738,7 @@ const DURATION = 30*60;          // 30 minutes strictes
 const CHEST_CODE = "6817";       // code du coffre physique (les joueurs le DÉDUISENT)
 const QR_ANSWER  = "CRUCHOT";    // réponse à saisir (résultat de l'énigme du QR)
 // Texte encodé DANS le QR : une charade à résoudre (sans accents, pour un QR fiable au scan)
-const QR_ENIGME  = "ÉNIGME. Mon premier est un grand vin très réputé. Mon deuxième est le contraire de froid. Prononcés à la suite, ils forment un nom. Tapez ce nom sur l'ordinateur.";
+const QR_ENIGME  = "ÉNIGME. Mon premier est un grand vin très réputé. Mon deuxième est le contraire de froid. Prononcés à la suite, qu'entendez-vous ? Écrivez-le sur l'ordinateur.";
 const GM_PASSWORD = "SUFFREN";   // mot de passe maître du jeu (modifiable)
 
 /* Modules physiques (modifiables) */
@@ -2922,7 +2922,7 @@ const STEPS = [
     solution:"« PLVWUDO » décalé de −3 donne MISTRAL, le vent qui guida la barque." },
 
   { type:"qr", letter:"D", art:"gendarmerie", lieu:"Le musée de la Gendarmerie", titre:"Le dossier secret",
-    histoire:"Sur la place Blanqui, l'ancienne <b>gendarmerie</b> est mondialement connue : c'est ici qu'en <b>1964</b> débute « Le Gendarme de Saint-Tropez », où <b>Louis de Funès</b> campe le pétulant maréchal des logis-chef Cruchot. La série comptera six films jusqu'en 1982 et installera l'image joyeuse et estivale de la ville. Le bâtiment est aujourd'hui le <b>musée de la Gendarmerie et du Cinéma</b> — et un <b>dossier secret</b> y aurait été dissimulé…",
+    histoire:"Sur la place Blanqui, l'ancienne <b>gendarmerie</b> est mondialement connue : c'est ici qu'en <b>1964</b> débute « Le Gendarme de Saint-Tropez », où <b>Louis de Funès</b> campe un pétulant maréchal des logis-chef devenu culte. La série comptera six films jusqu'en 1982 et installera l'image joyeuse et estivale de la ville. Le bâtiment est aujourd'hui le <b>musée de la Gendarmerie et du Cinéma</b> — et un <b>dossier secret</b> y aurait été dissimulé…",
     reponses:[QR_ANSWER],
     indices:["Cherchez un <b>QR code</b> dissimulé près du décor de la gendarmerie, et scannez-le avec un téléphone.","La charade : « CRU » (un grand vin) + « CHAUD » (contraire de froid) se prononcent comme le nom du gendarme de Louis de Funès."],
     solution:"La charade donne CRU + CHAUD ≈ CRUCHOT, le maréchal des logis-chef du film." },
@@ -3170,8 +3170,8 @@ function renderStep(){
       ${answerRow("le mot déchiffré")}${indicesBlock(step)}`;
   } else if(step.type==="qr"){
     body = `<div class="qr-hint"><span class="ico">🕵️</span><div>Un <b>indice</b> a été dissimulé <b>dans les environs</b>… Enquêteurs, ouvrez l'œil : fouillez les lieux, et <b>scannez</b> ce que vous découvrirez.</div></div>
-      <p class="enonce">Résolvez l'énigme qu'il renferme : quel nom obtenez-vous ?</p>
-      ${answerRow("le nom trouvé")}${indicesBlock(step)}`;
+      <p class="enonce">Résolvez la charade qu'il renferme : qu'entendez-vous ?</p>
+      ${answerRow("ce que vous entendez")}${indicesBlock(step)}`;
   } else if(step.type==="cadenas"){
     body = `<p class="enonce">${step.riddle}</p>
       ${answerRow("le code à 3 chiffres caché")}${indicesBlock(step)}`;
